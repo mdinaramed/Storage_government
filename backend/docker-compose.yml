@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:15
+    container_name: storage_gov_db
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_DB: storage_government_new
+      POSTGRES_USER: warehouse
+      POSTGRES_PASSWORD: warehouse
+    volumes:
+      - storage_gov_pg:/var/lib/postgresql/data
+
+volumes:
+  storage_gov_pg:
