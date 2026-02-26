@@ -182,14 +182,14 @@ Author Dinara Medeubek
 
 ## 📸 Application MUI
 
-| Units | Resources |
-|-------|-----------|
-| ![](screenshots/units.png) | ![](screenshots/resources.png) |
+| Units              | Resources              |
+|--------------------|------------------------|
+| ![](MUI/units.png) | ![](MUI/resources.png) |
 
-| Clients | Balances |
-|---------|----------|
-| ![](screenshots/clients.png) | ![](screenshots/balances.png) |
+| Clients              | Balances              |
+|----------------------|-----------------------|
+| ![](MUI/clients.png) | ![](MUI/balances.png) |
 
-| Receipts | Shipments |
-|----------|-----------|
-| ![](screenshots/receipts.png) | ![](screenshots/shipments.png) |
+| Receipts            | Shipments              |
+|---------------------|------------------------|
+| ![](MUI/receipts.png) | ![](MUI/shipments.png) |
