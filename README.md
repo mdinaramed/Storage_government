@@ -31,11 +31,19 @@ The system automates warehouse operations including:
 
 ### Implemented Functionality
 
+
+Resources
+Create / Update
+Archive instead of delete
+•	Unique name validation
+•	Server-side filtering (search + state)
+
 #### Resources
 - Create / Update
 - Archive instead of delete
 - Unique name validation
 - Server-side filtering (search + state)
+>>>>>>> bedc3e87 (Update README)
 
 #### Units
 - Create / Update
@@ -56,14 +64,14 @@ The system automates warehouse operations including:
 - Multiple items per document
 - Unique document number validation
 - Server-side filtering:
-    - Date range
-    - Document numbers (multi-select)
-    - Resources (multi-select)
-    - Units (multi-select)
+  - Date range
+  - Document numbers (multi-select)
+  - Resources (multi-select)
+  - Units (multi-select)
 - Table displays document content
 - Balance automatically increases on:
-    - Create
-    - Update (delta recalculation)
+  - Create
+  - Update (delta recalculation)
 - Balance decreases on delete
 - Negative stock prevention
 
@@ -73,16 +81,16 @@ The system automates warehouse operations including:
 - Create / Edit / Delete
 - Status management (DRAFT / SIGNED)
 - Balance changes only on:
-    - SIGN → subtract stock
-    - REVOKE → restore stock
+  - SIGN → subtract stock
+  - REVOKE → restore stock
 - Validation prevents negative balance
 - Server-side filtering:
-    - Date range
-    - Numbers (multi-select)
-    - Resources (multi-select)
-    - Units (multi-select)
-    - Client
-    - State
+  - Date range
+  - Numbers (multi-select)
+  - Resources (multi-select)
+  - Units (multi-select)
+  - Client
+  - State
 
 ---
 
@@ -154,19 +162,18 @@ Runs at: http://localhost:5173
 
 ### Project Structure
 
-```bash
 backend/
 └── src/main/java/com/example/warehouse
-    ├── api
-    ├── config
-    ├── controller
-    ├── dto
-    ├── entity
-    ├── exception
-    ├── repository
-    ├── service
-    ├── util
-    └── StorageGovernmentApplication.java
+├── api
+├── config
+├── controller
+├── dto
+├── entity
+├── exception
+├── repository
+├── service
+├── util
+└── StorageGovernmentApplication.java
 
 backend/src/main/resources
 └── db
