@@ -160,7 +160,7 @@ npm run dev
 Runs at: http://localhost:5173
 
 ### Project Structure
-
+```bash
 backend/
 └── src/main/java/com/example/warehouse
 ├── api
@@ -191,7 +191,7 @@ frontend/
 │   └── theme.ts
 ├── .env
 └── node_modules
-
+```
 
 ### Project Scope
 This implementation covers:
