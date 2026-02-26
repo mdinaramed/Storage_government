@@ -38,9 +38,10 @@ public class ShipmentService {
 
     @Transactional(readOnly = true)
     public List<String> getAllNumbers() {
-        return shipmentRepository.findAll().stream()
-                .map(Shipment::getNumber)
+        return shipmentRepository.findDistinctNumbers().stream()
                 .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
                 .distinct()
                 .sorted()
                 .toList();
@@ -67,6 +68,7 @@ public class ShipmentService {
                                  List<String> numbers,
                                  List<Long> resourceIds,
                                  List<Long> unitIds,
+                                 Long clientId,
                                  ShipmentState state) {
 
         List<Shipment> base = shipmentRepository.findAll();
@@ -86,11 +88,19 @@ public class ShipmentService {
         if (numbers != null && !numbers.isEmpty()) {
             Set<String> nset = numbers.stream()
                     .filter(Objects::nonNull)
-                    .map(x -> x.trim().toLowerCase())
+                    .map(String::trim)
+                    .filter(x -> !x.isBlank())
+                    .map(String::toLowerCase)
                     .collect(Collectors.toSet());
 
             base = base.stream()
                     .filter(s -> s.getNumber() != null && nset.contains(s.getNumber().toLowerCase()))
+                    .toList();
+        }
+
+        if (clientId != null && clientId > 0) {
+            base = base.stream()
+                    .filter(s -> s.getClient() != null && Objects.equals(s.getClient().getId(), clientId))
                     .toList();
         }
 
@@ -104,11 +114,13 @@ public class ShipmentService {
             Set<Long> rset = (resourceIds == null) ? Set.of() : new HashSet<>(resourceIds);
             Set<Long> uset = (unitIds == null) ? Set.of() : new HashSet<>(unitIds);
 
-            base = base.stream().filter(s -> s.getItems() != null && s.getItems().stream().anyMatch(it -> {
-                boolean rOk = rset.isEmpty() || (it.getResource() != null && rset.contains(it.getResource().getId()));
-                boolean uOk = uset.isEmpty() || (it.getUnit() != null && uset.contains(it.getUnit().getId()));
-                return rOk && uOk;
-            })).toList();
+            base = base.stream()
+                    .filter(s -> s.getItems() != null && s.getItems().stream().anyMatch(it -> {
+                        boolean rOk = rset.isEmpty() || (it.getResource() != null && rset.contains(it.getResource().getId()));
+                        boolean uOk = uset.isEmpty() || (it.getUnit() != null && uset.contains(it.getUnit().getId()));
+                        return rOk && uOk;
+                    }))
+                    .toList();
         }
 
         return base;

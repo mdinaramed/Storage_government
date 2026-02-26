@@ -2,6 +2,8 @@ package com.example.warehouse.dto;
 
 import com.example.warehouse.entity.ShipmentState;
 import lombok.Data;
+import java.util.List;
+import java.util.ArrayList;
 
 import java.time.LocalDate;
 
@@ -13,4 +15,6 @@ public class ShipmentListItemDto {
     private Long clientId;
     private String clientName;
     private ShipmentState state;
+
+    private List<ShipmentItemDto> items = new ArrayList<>();
 }

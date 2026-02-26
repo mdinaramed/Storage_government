@@ -50,6 +50,14 @@ public class BalanceService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public BigDecimal getAmountOrZero(Long resourceId, Long unitId) {
+        if (resourceId == null || unitId == null) return BigDecimal.ZERO;
+        return balanceRepository.findByResourceIdAndUnitId(resourceId, unitId)
+                .map(Balance::getAmount)
+                .orElse(BigDecimal.ZERO);
+    }
+
     @Transactional
     public void add(Resource resource, Unit unit, BigDecimal qty) {
         validateQty(qty);

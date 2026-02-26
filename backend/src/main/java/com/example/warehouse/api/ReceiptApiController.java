@@ -28,7 +28,7 @@ public class ReceiptApiController {
             @RequestParam(required = false) List<Long> resourceIds,
             @RequestParam(required = false) List<Long> unitIds
     ) {
-        return receiptService.searchDto(from, to, numbers, resourceIds, unitIds);
+        return receiptService.searchListDto(from, to, numbers, resourceIds, unitIds);
     }
 
     @GetMapping("/{id}")

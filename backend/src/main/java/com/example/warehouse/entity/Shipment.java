@@ -56,7 +56,7 @@ public class Shipment {
         this.items.clear();
         if (newItems != null) {
             for (ShipmentItem it : newItems) {
-                it.setShipment(this); // важно, чтобы FK не был null
+                it.setShipment(this);
                 this.items.add(it);
             }
         }

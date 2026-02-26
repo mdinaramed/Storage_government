@@ -29,6 +29,7 @@ import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-dat
 
 import PageShell from "../../components/common/PageShell";
 import TableCard from "../../components/common/TableCard";
+import ToolbarCard from "../../components/common/ToolbarCard";
 
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { useAppSnackbar } from "../../components/common/AppSnackbar";
@@ -42,7 +43,7 @@ import { unitsApi } from "../../api/unitsApi";
 type Option = { id: number; name: string };
 
 function StateChip({ state }: { state: ShipmentState }) {
-    const color = state === "SIGNED" ? "success" : state === "REVOKED" ? "default" : "warning";
+    const color = state === "SIGNED" ? "success" : "warning";
     return <Chip label={state} color={color} size="small" />;
 }
 
@@ -60,16 +61,29 @@ export default function ShipmentsPage() {
     const [rows, setRows] = React.useState<Shipment[]>([]);
     const [loading, setLoading] = React.useState(false);
 
+    // lookups
     const [clients, setClients] = React.useState<Option[]>([]);
     const [resources, setResources] = React.useState<Option[]>([]);
     const [units, setUnits] = React.useState<Option[]>([]);
+    const [numbers, setNumbers] = React.useState<string[]>([]);
 
+    // filters
+    const [dateFrom, setDateFrom] = React.useState<string>("");
+    const [dateTo, setDateTo] = React.useState<string>("");
+    const [fNumbers, setFNumbers] = React.useState<string[]>([]);
+    const [fResourceIds, setFResourceIds] = React.useState<number[]>([]);
+    const [fUnitIds, setFUnitIds] = React.useState<number[]>([]);
+    const [fClientId, setFClientId] = React.useState<number>(0); // 0 = no filter
+    const [fState, setFState] = React.useState<ShipmentState | "">("");
+
+    // row menu
     const [menuAnchor, setMenuAnchor] = React.useState<HTMLElement | null>(null);
     const [menuRow, setMenuRow] = React.useState<Shipment | null>(null);
 
     const [confirmOpen, setConfirmOpen] = React.useState(false);
     const [deleteRow, setDeleteRow] = React.useState<Shipment | null>(null);
 
+    // form
     const [openForm, setOpenForm] = React.useState(false);
     const [editing, setEditing] = React.useState<Shipment | null>(null);
 
@@ -78,40 +92,86 @@ export default function ShipmentsPage() {
     const [clientId, setClientId] = React.useState<number>(0);
     const [items, setItems] = React.useState<ShipmentItem[]>([emptyItem()]);
 
-    const load = React.useCallback(async () => {
-        setLoading(true);
-        try {
-            const data = await shipmentsApi.list();
-            setRows(Array.isArray(data) ? data : []);
-        } catch (e: unknown) {
-            const err = e as { userMessage?: string; message?: string };
-            notify(err.userMessage ?? err.message ?? "Load failed", "error");
-            setRows([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [notify]);
+    const nameById = React.useCallback((list: Option[], id: number) => {
+        return list.find((x) => x.id === id)?.name ?? `#${id}`;
+    }, []);
+
+    const formatItem = React.useCallback(
+        (it: ShipmentItem) => {
+            const r = nameById(resources, it.resourceId);
+            const u = nameById(units, it.unitId);
+            const q = Number(it.quantity);
+            const qText = Number.isFinite(q) ? q.toString() : String(it.quantity);
+            return `${r} / ${u} — ${qText}`;
+        },
+        [nameById, resources, units]
+    );
 
     const loadLookups = React.useCallback(async () => {
         try {
-            const [c, r, u] = await Promise.all([
+            const [c, r, u, n] = await Promise.all([
                 clientsApi.list(undefined, "ACTIVE"),
                 resourcesApi.list(undefined, "ACTIVE"),
                 unitsApi.list(undefined, "ACTIVE"),
+                shipmentsApi.numbers(),
             ]);
+
             setClients(c.map((x) => ({ id: x.id, name: x.name })));
             setResources(r.map((x) => ({ id: x.id, name: x.name })));
             setUnits(u.map((x) => ({ id: x.id, name: x.name })));
+            setNumbers(Array.isArray(n) ? n : []);
         } catch (e: unknown) {
             const err = e as { userMessage?: string; message?: string };
             notify(err.userMessage ?? err.message ?? "Failed to load dropdowns", "error");
         }
     }, [notify]);
 
+    const load = React.useCallback(
+        async (withFilters: boolean) => {
+            setLoading(true);
+            try {
+                const params = withFilters
+                    ? {
+                        dateFrom: dateFrom || undefined,
+                        dateTo: dateTo || undefined,
+                        numbers: fNumbers.length ? fNumbers : undefined,
+                        resourceIds: fResourceIds.length ? fResourceIds : undefined,
+                        unitIds: fUnitIds.length ? fUnitIds : undefined,
+                        clientId: fClientId > 0 ? fClientId : undefined,
+                        state: fState || undefined,
+                    }
+                    : undefined;
+
+                const data = await shipmentsApi.list(params);
+                setRows(Array.isArray(data) ? data : []);
+            } catch (e: unknown) {
+                const err = e as { userMessage?: string; message?: string };
+                notify(err.userMessage ?? err.message ?? "Load failed", "error");
+                setRows([]);
+            } finally {
+                setLoading(false);
+            }
+        },
+        [dateFrom, dateTo, fNumbers, fResourceIds, fUnitIds, fClientId, fState, notify]
+    );
+
     React.useEffect(() => {
-        void load();
         void loadLookups();
-    }, [load, loadLookups]);
+        void load(false);
+    }, [loadLookups, load]);
+
+    const applyFilters = () => void load(true);
+
+    const refreshFilters = () => {
+        setDateFrom("");
+        setDateTo("");
+        setFNumbers([]);
+        setFResourceIds([]);
+        setFUnitIds([]);
+        setFClientId(0);
+        setFState("");
+        void load(false);
+    };
 
     const openCreate = () => {
         setEditing(null);
@@ -170,7 +230,8 @@ export default function ShipmentsPage() {
                 notify("Created", "success");
             }
             setOpenForm(false);
-            await load();
+            await load(true);
+            await loadLookups();
         } catch (e: unknown) {
             const err = e as { userMessage?: string; message?: string };
             notify(err.userMessage ?? err.message ?? "Save failed", "error");
@@ -193,7 +254,7 @@ export default function ShipmentsPage() {
             await shipmentsApi.sign(menuRow.id);
             notify("Signed", "success");
             closeMenu();
-            await load();
+            await load(true);
         } catch (e: unknown) {
             const err = e as { userMessage?: string; message?: string };
             notify(err.userMessage ?? err.message ?? "Sign failed", "error");
@@ -206,7 +267,7 @@ export default function ShipmentsPage() {
             await shipmentsApi.revoke(menuRow.id);
             notify("Revoked", "success");
             closeMenu();
-            await load();
+            await load(true);
         } catch (e: unknown) {
             const err = e as { userMessage?: string; message?: string };
             notify(err.userMessage ?? err.message ?? "Revoke failed", "error");
@@ -228,47 +289,80 @@ export default function ShipmentsPage() {
         try {
             await shipmentsApi.remove(r.id);
             notify("Deleted", "success");
-            await load();
+            await load(true);
+            await loadLookups();
         } catch (e: unknown) {
             const err = e as { userMessage?: string; message?: string };
             notify(err.userMessage ?? err.message ?? "Delete failed", "error");
         }
     };
 
-    const nameById = React.useCallback((list: Option[], id: number) => {
-        return list.find((x) => x.id === id)?.name ?? `#${id}`;
-    }, []);
-
     const cols: GridColDef<Shipment>[] = React.useMemo(
         () => [
-            { field: "id", headerName: "ID", width: 90 },
-            { field: "number", headerName: "Number", flex: 1, minWidth: 240 },
-            { field: "date", headerName: "Date", width: 160 },
+            { field: "id", headerName: "ID", width: 80 },
+            { field: "number", headerName: "Number", flex: 1, minWidth: 160 },
+            { field: "date", headerName: "Date", width: 140 },
             {
                 field: "clientId",
                 headerName: "Client",
                 flex: 1,
-                minWidth: 240,
+                minWidth: 180,
                 valueGetter: (_v, row) => nameById(clients, row.clientId),
             },
             {
                 field: "state",
                 headerName: "State",
-                width: 160,
+                width: 120,
                 sortable: false,
                 renderCell: (p: GridRenderCellParams<Shipment>) => <StateChip state={p.row.state} />,
             },
             {
+                field: "content",
+                headerName: "Content",
+                flex: 2,
+                minWidth: 280,
+                sortable: false,
+                filterable: false,
+                renderCell: (p: GridRenderCellParams<Shipment>) => {
+                    const list = p.row.items ?? [];
+                    if (!list.length) {
+                        return (
+                            <Typography variant="body2" sx={{ opacity: 0.6 }}>
+                                —
+                            </Typography>
+                        );
+                    }
+
+                    const head = list.slice(0, 3);
+                    const rest = list.length - head.length;
+
+                    return (
+                        <Stack spacing={0.3} sx={{ py: 0.5, whiteSpace: "normal", lineHeight: 1.2 }}>
+                            {head.map((it, idx) => (
+                                <Typography key={idx} variant="body2">
+                                    • {formatItem(it)}
+                                </Typography>
+                            ))}
+                            {rest > 0 && (
+                                <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                    +{rest} more…
+                                </Typography>
+                            )}
+                        </Stack>
+                    );
+                },
+            },
+            {
                 field: "items",
                 headerName: "Items",
-                width: 120,
+                width: 90,
                 sortable: false,
                 valueGetter: (_v, row) => row.items?.length ?? 0,
             },
             {
                 field: "_actions",
                 headerName: "",
-                width: 90,
+                width: 60,
                 sortable: false,
                 filterable: false,
                 align: "right",
@@ -280,34 +374,151 @@ export default function ShipmentsPage() {
                 ),
             },
         ],
-        [clients, nameById]
+        [clients, nameById, formatItem]
     );
 
     const setItem = (idx: number, patch: Partial<ShipmentItem>) => {
         setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
     };
-
     const addItem = () => setItems((prev) => [...prev, emptyItem()]);
     const removeItem = (idx: number) => setItems((prev) => prev.filter((_, i) => i !== idx));
+
+    const canSign = menuRow ? menuRow.state === "DRAFT" : false;
+    const canRevoke = menuRow ? menuRow.state === "SIGNED" : false;
+    const canDelete = menuRow ? menuRow.state !== "SIGNED" : false;
 
     return (
         <PageShell
             title="Shipments"
-            subtitle="Outgoing documents"
+            subtitle="Outgoing documents (server-side filters)"
             actions={
                 <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
                     New
                 </Button>
             }
         >
+            <ToolbarCard
+                left={
+                    <>
+                        <TextField
+                            label="Date from"
+                            type="date"
+                            value={dateFrom}
+                            onChange={(e) => setDateFrom(e.target.value)}
+                            sx={{ width: 200 }}
+                            InputLabelProps={{ shrink: true }}
+                        />
+                        <TextField
+                            label="Date to"
+                            type="date"
+                            value={dateTo}
+                            onChange={(e) => setDateTo(e.target.value)}
+                            sx={{ width: 200 }}
+                            InputLabelProps={{ shrink: true }}
+                        />
+
+                        <FormControl sx={{ width: 240 }}>
+                            <InputLabel>Numbers</InputLabel>
+                            <Select
+                                label="Numbers"
+                                multiple
+                                value={fNumbers}
+                                onChange={(e) => setFNumbers(e.target.value as string[])}
+                            >
+                                {numbers.map((n) => (
+                                    <MenuItem key={n} value={n}>
+                                        {n}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
+                        <FormControl sx={{ width: 240 }}>
+                            <InputLabel>Resources</InputLabel>
+                            <Select
+                                label="Resources"
+                                multiple
+                                value={fResourceIds}
+                                onChange={(e) => setFResourceIds((e.target.value as number[]) ?? [])}
+                            >
+                                {resources.map((r) => (
+                                    <MenuItem key={r.id} value={r.id}>
+                                        {r.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
+                        <FormControl sx={{ width: 200 }}>
+                            <InputLabel>Units</InputLabel>
+                            <Select
+                                label="Units"
+                                multiple
+                                value={fUnitIds}
+                                onChange={(e) => setFUnitIds((e.target.value as number[]) ?? [])}
+                            >
+                                {units.map((u) => (
+                                    <MenuItem key={u.id} value={u.id}>
+                                        {u.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
+                        <FormControl sx={{ width: 220 }}>
+                            <InputLabel>Client (optional)</InputLabel>
+                            <Select
+                                label="Client (optional)"
+                                value={fClientId}
+                                onChange={(e) => setFClientId(Number(e.target.value))}
+                            >
+                                <MenuItem value={0}>All</MenuItem>
+                                {clients.map((c) => (
+                                    <MenuItem key={c.id} value={c.id}>
+                                        {c.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
+                        <FormControl sx={{ width: 160 }}>
+                            <InputLabel>State</InputLabel>
+                            <Select
+                                label="State"
+                                value={fState}
+                                onChange={(e) => setFState(e.target.value as ShipmentState | "")}
+                            >
+                                <MenuItem value="">All</MenuItem>
+                                <MenuItem value="DRAFT">DRAFT</MenuItem>
+                                <MenuItem value="SIGNED">SIGNED</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </>
+                }
+                right={
+                    <>
+                        <Button variant="outlined" onClick={refreshFilters}>
+                            Refresh
+                        </Button>
+                        <Button variant="contained" onClick={applyFilters}>
+                            Apply
+                        </Button>
+                    </>
+                }
+            />
+
             <TableCard height={660}>
                 <DataGrid
                     rows={rows}
                     columns={cols}
                     loading={loading}
                     pageSizeOptions={[10, 25, 50, 100]}
-                    initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
+                    initialState={{
+                        pagination: { paginationModel: { pageSize: 10, page: 0 } },
+                        pinnedColumns: { right: ["_actions"] } as any,
+                    }}
                     disableRowSelectionOnClick
+                    getRowHeight={() => "auto"}
                 />
             </TableCard>
 
@@ -317,24 +528,25 @@ export default function ShipmentsPage() {
                         if (menuRow) openEdit(menuRow);
                         closeMenu();
                     }}
+                    disabled={!menuRow || menuRow.state === "SIGNED"}
                 >
                     <EditIcon fontSize="small" style={{ marginRight: 10 }} />
                     Edit
                 </MenuItem>
 
-                <MenuItem onClick={() => void doSign()}>
+                <MenuItem onClick={() => void doSign()} disabled={!canSign}>
                     <DoneIcon fontSize="small" style={{ marginRight: 10 }} />
                     Sign
                 </MenuItem>
 
-                <MenuItem onClick={() => void doRevoke()}>
+                <MenuItem onClick={() => void doRevoke()} disabled={!canRevoke}>
                     <UndoIcon fontSize="small" style={{ marginRight: 10 }} />
                     Revoke
                 </MenuItem>
 
                 <Divider />
 
-                <MenuItem onClick={askDelete} sx={{ color: "error.main" }}>
+                <MenuItem onClick={askDelete} sx={{ color: "error.main" }} disabled={!canDelete}>
                     <DeleteIcon fontSize="small" style={{ marginRight: 10 }} />
                     Delete
                 </MenuItem>

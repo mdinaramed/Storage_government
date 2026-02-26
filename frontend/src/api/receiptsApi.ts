@@ -1,5 +1,5 @@
 import { http } from "./http";
-import type { Receipt } from "../types/receipt";
+import type { Receipt, ReceiptItem } from "../types/receipt";
 
 export type ReceiptListParams = {
     from?: string;
@@ -7,6 +7,12 @@ export type ReceiptListParams = {
     numbers?: string[];
     resourceIds?: number[];
     unitIds?: number[];
+};
+
+export type ReceiptPayload = {
+    number: string;
+    date: string; // YYYY-MM-DD
+    items: ReceiptItem[];
 };
 
 export const receiptsApi = {
@@ -20,12 +26,12 @@ export const receiptsApi = {
         return data;
     },
 
-    async create(payload: any): Promise<Receipt> {
+    async create(payload: ReceiptPayload): Promise<Receipt> {
         const { data } = await http.post<Receipt>("/receipts", payload);
         return data;
     },
 
-    async update(id: number, payload: any): Promise<Receipt> {
+    async update(id: number, payload: ReceiptPayload): Promise<Receipt> {
         const { data } = await http.put<Receipt>(`/receipts/${id}`, payload);
         return data;
     },

@@ -40,14 +40,18 @@ public class ShipmentController {
                        @RequestParam(required = false) List<String> numbers,
                        @RequestParam(required = false) List<Long> resourceIds,
                        @RequestParam(required = false) List<Long> unitIds,
+                       @RequestParam(required = false) Long clientId,
                        @RequestParam(required = false) ShipmentState state,
                        Model model) {
 
-        model.addAttribute("shipments", shipmentService.search(from, to, numbers, resourceIds, unitIds, state));
+        model.addAttribute("shipments",
+                shipmentService.search(from, to, numbers, resourceIds, unitIds, clientId, state)
+        );
 
         model.addAttribute("allShipmentNumbers", shipmentService.getAllNumbers());
         model.addAttribute("resources", resourceService.getAllActive());
         model.addAttribute("units", unitService.getAllActive());
+        model.addAttribute("clients", clientService.getAllActive());
         model.addAttribute("states", ShipmentState.values());
 
         model.addAttribute("from", from);
@@ -55,6 +59,7 @@ public class ShipmentController {
         model.addAttribute("numbers", numbers);
         model.addAttribute("resourceIds", resourceIds);
         model.addAttribute("unitIds", unitIds);
+        model.addAttribute("clientId", clientId);
         model.addAttribute("state", state);
 
         return "shipments/list";

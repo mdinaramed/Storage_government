@@ -1,4 +1,4 @@
-export type ShipmentState = "DRAFT" | "SIGNED" | "REVOKED";
+export type ShipmentState = "DRAFT" | "SIGNED";
 
 export type ShipmentItem = {
     resourceId: number;

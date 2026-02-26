@@ -21,16 +21,28 @@ public class ShipmentApiController {
         this.shipmentService = shipmentService;
     }
 
+    @GetMapping("/numbers")
+    public List<String> numbers() {
+        return shipmentService.getAllNumbers();
+    }
+
     @GetMapping
     public List<ShipmentDto> list(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false, name = "dateFrom")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate from,
+
+            @RequestParam(required = false, name = "dateTo")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate to,
+
             @RequestParam(required = false) List<String> numbers,
             @RequestParam(required = false) List<Long> resourceIds,
             @RequestParam(required = false) List<Long> unitIds,
+            @RequestParam(required = false) Long clientId,
             @RequestParam(required = false) ShipmentState state
     ) {
-        List<Shipment> found = shipmentService.search(from, to, numbers, resourceIds, unitIds, state);
+        List<Shipment> found = shipmentService.search(from, to, numbers, resourceIds, unitIds, clientId, state);
 
         List<ShipmentDto> result = new ArrayList<>();
         for (Shipment s : found) {

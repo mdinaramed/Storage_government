@@ -1,6 +1,8 @@
 import * as React from "react";
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import DeleteIcon from "@mui/icons-material/DeleteOutline";
+import EditIcon from "@mui/icons-material/EditOutlined";
 import {
     Autocomplete,
     Box,
@@ -26,13 +28,27 @@ import TableCard from "../../components/common/TableCard";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { useAppSnackbar } from "../../components/common/AppSnackbar";
 
-import type { Receipt, ReceiptItem } from "../../types/receipt";
 import type { Resource } from "../../types/resource";
 import type { Unit } from "../../types/unit";
-
 import { receiptsApi } from "../../api/receiptsApi";
 import { resourcesApi } from "../../api/resourcesApi";
 import { unitsApi } from "../../api/unitsApi";
+
+type ReceiptListItem = {
+    id: number;
+    number: string;
+    date: string;
+    items: {
+        resourceId: number | null;
+        resourceName?: string | null;
+        unitId: number | null;
+        unitName?: string | null;
+        quantity: any;
+    }[];
+};
+
+type ReceiptItem = { resourceId: number; unitId: number; quantity: any };
+type ReceiptFull = { id: number; number: string; date: string; items?: ReceiptItem[] };
 
 type ItemDraft = ReceiptItem & { _key: string };
 
@@ -48,12 +64,8 @@ function fromDraft(items: ItemDraft[]): ReceiptItem[] {
     return items.map((it) => ({
         resourceId: Number(it.resourceId),
         unitId: Number(it.unitId),
-        quantity: Number(it.quantity),
+        quantity: Number(String(it.quantity ?? "").replace(",", ".").trim()),
     }));
-}
-
-function safeItemsCount(r: Receipt): number {
-    return Array.isArray(r.items) ? r.items.length : 0;
 }
 
 function todayISO(): string {
@@ -67,19 +79,19 @@ function todayISO(): string {
 export default function ReceiptsPage() {
     const { notify } = useAppSnackbar();
 
-    const [rows, setRows] = React.useState<Receipt[]>([]);
+    const [rows, setRows] = React.useState<ReceiptListItem[]>([]);
     const [loading, setLoading] = React.useState(false);
 
     const [openForm, setOpenForm] = React.useState(false);
-    const [editing, setEditing] = React.useState<Receipt | null>(null);
+    const [editing, setEditing] = React.useState<ReceiptFull | null>(null);
     const [number, setNumber] = React.useState("");
-    const [date, setDate] = React.useState<string>(todayISO);
+    const [date, setDate] = React.useState<string>(todayISO());
     const [items, setItems] = React.useState<ItemDraft[]>([]);
 
     const [menuAnchor, setMenuAnchor] = React.useState<HTMLElement | null>(null);
-    const [menuRow, setMenuRow] = React.useState<Receipt | null>(null);
+    const [menuRow, setMenuRow] = React.useState<ReceiptListItem | null>(null);
     const [confirmOpen, setConfirmOpen] = React.useState(false);
-    const [deleteRow, setDeleteRow] = React.useState<Receipt | null>(null);
+    const [deleteRow, setDeleteRow] = React.useState<ReceiptListItem | null>(null);
 
     const [from, setFrom] = React.useState<string>("");
     const [to, setTo] = React.useState<string>("");
@@ -93,6 +105,11 @@ export default function ReceiptsPage() {
     const [selectedResources, setSelectedResources] = React.useState<Resource[]>([]);
     const [selectedUnits, setSelectedUnits] = React.useState<Unit[]>([]);
 
+    const nameById = React.useCallback((list: { id: number; name: string }[], id: number | null | undefined) => {
+        if (!id) return "—";
+        return list.find((x) => x.id === id)?.name ?? `#${id}`;
+    }, []);
+
     const loadLookups = React.useCallback(async () => {
         try {
             const [res, u, all] = await Promise.all([
@@ -104,11 +121,11 @@ export default function ReceiptsPage() {
             setResources(Array.isArray(res) ? res : []);
             setUnits(Array.isArray(u) ? u : []);
 
-            const nums = (Array.isArray(all) ? all : [])
-                .map((x) => (x.number ?? "").trim())
-                .filter((x) => x.length > 0);
-
-            setAllNumbers(Array.from(new Set(nums)).sort((a, b) => a.localeCompare(b)));
+            const arr = Array.isArray(all) ? all : [];
+            const nums = Array.from(new Set(arr.map((x: any) => (x.number ?? "").trim()).filter(Boolean))).sort((a, b) =>
+                a.localeCompare(b)
+            );
+            setAllNumbers(nums);
         } catch (e: unknown) {
             const err = e as { userMessage?: string; message?: string };
             notify(err.userMessage ?? err.message ?? "Failed to load filters", "error");
@@ -122,11 +139,11 @@ export default function ReceiptsPage() {
                 from: from.trim() || undefined,
                 to: to.trim() || undefined,
                 numbers: selectedNumbers.length ? selectedNumbers : undefined,
-                resourceIds: selectedResources.map((r) => r.id),
-                unitIds: selectedUnits.map((u) => u.id),
+                resourceIds: selectedResources.length ? selectedResources.map((r) => r.id) : undefined,
+                unitIds: selectedUnits.length ? selectedUnits.map((u) => u.id) : undefined,
             });
 
-            setRows(Array.isArray(data) ? data : []);
+            setRows(Array.isArray(data) ? (data as any) : []);
         } catch (e: unknown) {
             const err = e as { userMessage?: string; message?: string };
             notify(err.userMessage ?? err.message ?? "Failed to load receipts", "error");
@@ -139,43 +156,7 @@ export default function ReceiptsPage() {
     React.useEffect(() => {
         void loadLookups();
         void loadReceipts();
-    }, [loadLookups]);
-
-    const cols: GridColDef<Receipt>[] = React.useMemo(
-        () => [
-            { field: "id", headerName: "ID", width: 90 },
-            { field: "number", headerName: "Number", flex: 1, minWidth: 220 },
-            { field: "date", headerName: "Date", width: 160 },
-            {
-                field: "itemsCount",
-                headerName: "Items",
-                width: 120,
-                sortable: false,
-                valueGetter: (_value, row) => safeItemsCount(row),
-            },
-            {
-                field: "_actions",
-                headerName: "",
-                width: 90,
-                sortable: false,
-                filterable: false,
-                align: "right",
-                headerAlign: "right",
-                renderCell: (p: GridRenderCellParams<Receipt>) => (
-                    <IconButton
-                        size="small"
-                        onClick={(e) => {
-                            setMenuAnchor(e.currentTarget);
-                            setMenuRow(p.row);
-                        }}
-                    >
-                        <MoreVertIcon fontSize="small" />
-                    </IconButton>
-                ),
-            },
-        ],
-        []
-    );
+    }, [loadLookups, loadReceipts]);
 
     const openCreate = () => {
         setEditing(null);
@@ -185,9 +166,9 @@ export default function ReceiptsPage() {
         setOpenForm(true);
     };
 
-    const openEdit = async (r: Receipt) => {
+    const openEdit = async (r: ReceiptListItem) => {
         try {
-            const full = await receiptsApi.get(r.id);
+            const full = (await receiptsApi.get(r.id)) as any as ReceiptFull;
             setEditing(full);
             setNumber(full.number ?? "");
             setDate(full.date ?? todayISO());
@@ -201,43 +182,27 @@ export default function ReceiptsPage() {
 
     const closeForm = () => setOpenForm(false);
 
-    const addItem = () => {
-        setItems((prev) => [...prev, { _key: mkKey(), resourceId: 0, unitId: 0, quantity: 0 }]);
-    };
-
-    const removeItem = (key: string) => {
-        setItems((prev) => prev.filter((it) => it._key !== key));
-    };
-
-    const updateItem = (key: string, patch: Partial<ReceiptItem>) => {
+    const addItem = () => setItems((prev) => [...prev, { _key: mkKey(), resourceId: 0, unitId: 0, quantity: "" }]);
+    const removeItem = (key: string) => setItems((prev) => prev.filter((it) => it._key !== key));
+    const updateItem = (key: string, patch: Partial<ReceiptItem>) =>
         setItems((prev) => prev.map((it) => (it._key === key ? { ...it, ...patch } : it)));
-    };
 
     const save = async () => {
-        const n = number.trim();
-        if (!n) return notify("Number is required", "warning");
+        if (!number.trim()) return notify("Number is required", "warning");
         if (!date.trim()) return notify("Date is required", "warning");
 
         const payload = {
-            number: n,
+            number: number.trim(),
             date: date.trim(),
-            items: fromDraft(items).filter(
-                (it) =>
-                    Number.isFinite(it.resourceId) &&
-                    Number.isFinite(it.unitId) &&
-                    Number.isFinite(it.quantity) &&
-                    it.resourceId > 0 &&
-                    it.unitId > 0 &&
-                    it.quantity > 0
-            ),
+            items: fromDraft(items).filter((x) => x.resourceId > 0 && x.unitId > 0 && Number(x.quantity) > 0),
         };
 
         try {
             if (editing) {
-                await receiptsApi.update(editing.id, payload);
+                await receiptsApi.update(editing.id, payload as any);
                 notify("Updated", "success");
             } else {
-                await receiptsApi.create(payload);
+                await receiptsApi.create(payload as any);
                 notify("Created", "success");
             }
             setOpenForm(false);
@@ -276,6 +241,78 @@ export default function ReceiptsPage() {
             notify(err.userMessage ?? err.message ?? "Delete failed", "error");
         }
     };
+
+    const cols: GridColDef<ReceiptListItem>[] = React.useMemo(
+        () => [
+            { field: "id", headerName: "ID", width: 90 },
+            { field: "number", headerName: "Number", flex: 1, minWidth: 160 },
+            { field: "date", headerName: "Date", width: 160 },
+            {
+                field: "content",
+                headerName: "Content",
+                flex: 2,
+                minWidth: 520,
+                sortable: false,
+                filterable: false,
+                renderCell: (p: GridRenderCellParams<ReceiptListItem>) => {
+                    const list = Array.isArray(p.row.items) ? p.row.items : [];
+                    if (list.length === 0) return <Typography sx={{ opacity: 0.6 }}>—</Typography>;
+
+                    const head = list.slice(0, 3);
+                    const rest = list.length - head.length;
+
+                    return (
+                        <Stack spacing={0.3} sx={{ py: 0.5, whiteSpace: "normal", lineHeight: 1.2 }}>
+                            {head.map((it, idx) => {
+                                const rName = (it.resourceName ?? "").trim() || nameById(resources, it.resourceId);
+                                const uName = (it.unitName ?? "").trim() || nameById(units, it.unitId);
+                                return (
+                                    <Typography key={idx} variant="body2">
+                                        • {rName} / {uName} - {String(it.quantity)}
+                                    </Typography>
+                                );
+                            })}
+                            {rest > 0 && (
+                                <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                    +{rest} more…
+                                </Typography>
+                            )}
+                        </Stack>
+                    );
+                },
+            },
+
+            {
+                field: "itemsCount",
+                headerName: "Items",
+                width: 120,
+                sortable: false,
+                valueGetter: (_v, row) => (Array.isArray(row.items) ? row.items.length : 0),
+            },
+
+            {
+                field: "_actions",
+                headerName: "",
+                width: 90,
+                sortable: false,
+                filterable: false,
+                align: "right",
+                headerAlign: "right",
+                renderCell: (p: GridRenderCellParams<ReceiptListItem>) => (
+                    <IconButton
+                        size="small"
+                        onClick={(e) => {
+                            setMenuAnchor(e.currentTarget);
+                            setMenuRow(p.row);
+                        }}
+                    >
+                        <MoreVertIcon fontSize="small" />
+                    </IconButton>
+                ),
+            },
+        ],
+        [nameById, resources, units]
+    );
 
     return (
         <PageShell
@@ -344,7 +381,17 @@ export default function ReceiptsPage() {
                 }
                 right={
                     <>
-                        <Button variant="outlined" onClick={() => void loadReceipts()}>
+                        <Button
+                            variant="outlined"
+                            onClick={() => {
+                                setFrom("");
+                                setTo("");
+                                setSelectedNumbers([]);
+                                setSelectedResources([]);
+                                setSelectedUnits([]);
+                                void loadReceipts();
+                            }}
+                        >
                             Refresh
                         </Button>
                         <Button variant="contained" onClick={() => void loadReceipts()}>
@@ -362,6 +409,7 @@ export default function ReceiptsPage() {
                     pageSizeOptions={[10, 25, 50, 100]}
                     initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
                     disableRowSelectionOnClick
+                    getRowHeight={() => "auto"}
                 />
             </TableCard>
 
@@ -372,9 +420,14 @@ export default function ReceiptsPage() {
                         closeMenu();
                     }}
                 >
+                    <EditIcon fontSize="small" style={{ marginRight: 10 }} />
                     Edit
                 </MenuItem>
+
+                <Divider />
+
                 <MenuItem onClick={askDelete} sx={{ color: "error.main" }}>
+                    <DeleteIcon fontSize="small" style={{ marginRight: 10 }} />
                     Delete
                 </MenuItem>
             </Menu>
@@ -392,19 +445,12 @@ export default function ReceiptsPage() {
             />
 
             <Dialog open={openForm} onClose={closeForm} maxWidth="md" fullWidth>
-                <DialogTitle sx={{ fontWeight: 900 }}>
-                    {editing ? `Edit receipt #${editing.id}` : "Create receipt"}
-                </DialogTitle>
+                <DialogTitle sx={{ fontWeight: 900 }}>{editing ? `Edit receipt #${editing.id}` : "Create receipt"}</DialogTitle>
 
                 <DialogContent sx={{ pt: 2 }}>
                     <Stack spacing={2} sx={{ mt: 1 }}>
                         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                            <TextField
-                                label="Number"
-                                value={number}
-                                onChange={(e) => setNumber(e.target.value)}
-                                fullWidth
-                            />
+                            <TextField label="Number" value={number} onChange={(e) => setNumber(e.target.value)} fullWidth />
                             <TextField
                                 label="Date"
                                 type="date"
@@ -425,42 +471,35 @@ export default function ReceiptsPage() {
                         <Divider />
 
                         {items.length === 0 ? (
-                            <Typography color="text.secondary">
-                                No items yet. (По ТЗ поступление может быть пустым — но проверь бэк!)
-                            </Typography>
+                            <Typography color="text.secondary">No items yet</Typography>
                         ) : (
                             <Stack spacing={1.5}>
                                 {items.map((it) => (
-                                    <Card
-                                        key={it._key}
-                                        sx={{ p: 2, borderRadius: 3, border: "1px solid", borderColor: "divider" }}
-                                    >
+                                    <Card key={it._key} sx={{ p: 2, borderRadius: 3, border: "1px solid", borderColor: "divider" }}>
                                         <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems="center">
-                                            <TextField
-                                                label="Resource ID"
-                                                type="number"
-                                                value={it.resourceId}
-                                                onChange={(e) =>
-                                                    updateItem(it._key, { resourceId: Number(e.target.value) })
-                                                }
-                                                sx={{ width: { xs: "100%", md: 180 } }}
+                                            <Autocomplete
+                                                options={resources}
+                                                value={resources.find((r) => r.id === Number(it.resourceId)) ?? null}
+                                                onChange={(_, v) => updateItem(it._key, { resourceId: v?.id ?? 0 })}
+                                                getOptionLabel={(o) => o.name}
+                                                isOptionEqualToValue={(a, b) => a.id === b.id}
+                                                renderInput={(params) => <TextField {...params} label="Resource" />}
+                                                sx={{ width: { xs: "100%", md: 260 } }}
                                             />
-                                            <TextField
-                                                label="Unit ID"
-                                                type="number"
-                                                value={it.unitId}
-                                                onChange={(e) =>
-                                                    updateItem(it._key, { unitId: Number(e.target.value) })
-                                                }
-                                                sx={{ width: { xs: "100%", md: 180 } }}
+
+                                            <Autocomplete
+                                                options={units}
+                                                value={units.find((u) => u.id === Number(it.unitId)) ?? null}
+                                                onChange={(_, v) => updateItem(it._key, { unitId: v?.id ?? 0 })}
+                                                getOptionLabel={(o) => o.name}
+                                                isOptionEqualToValue={(a, b) => a.id === b.id}
+                                                renderInput={(params) => <TextField {...params} label="Unit" />}
+                                                sx={{ width: { xs: "100%", md: 220 } }}
                                             />
                                             <TextField
                                                 label="Quantity"
-                                                type="number"
-                                                value={it.quantity}
-                                                onChange={(e) =>
-                                                    updateItem(it._key, { quantity: Number(e.target.value) })
-                                                }
+                                                value={it.quantity ?? ""}
+                                                onChange={(e) => updateItem(it._key, { quantity: e.target.value as any })}
                                                 sx={{ width: { xs: "100%", md: 220 } }}
                                             />
 
@@ -470,6 +509,10 @@ export default function ReceiptsPage() {
                                                 Remove
                                             </Button>
                                         </Stack>
+
+                                        <Typography variant="body2" sx={{ mt: 1, opacity: 0.75 }}>
+                                            {nameById(resources, Number(it.resourceId))} / {nameById(units, Number(it.unitId))}
+                                        </Typography>
                                     </Card>
                                 ))}
                             </Stack>
