@@ -43,7 +43,6 @@ Archive instead of delete
 - Archive instead of delete
 - Unique name validation
 - Server-side filtering (search + state)
->>>>>>> bedc3e87 (Update README)
 
 #### Units
 - Create / Update
