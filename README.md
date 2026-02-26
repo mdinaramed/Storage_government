@@ -28,8 +28,8 @@ Frontend
 ### Implemented Functionality
 
  Resources
-•	Create / Update
-•	Archive instead of delete
+	Create / Update
+	Archive instead of delete
 •	Unique name validation
 •	Server-side filtering (search + state)
 
