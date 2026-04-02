@@ -31,13 +31,6 @@ The system automates warehouse operations including:
 
 ### Implemented Functionality
 
-
-Resources
-Create / Update
-Archive instead of delete
-•	Unique name validation
-•	Server-side filtering (search + state)
-
 #### Resources
 - Create / Update
 - Archive instead of delete
